@@ -1,14 +1,12 @@
+using RedisV2.Database.Controllers;
+using RedisV2.Database.Extensions;
+
 var builder = WebApplication.CreateBuilder(args);
 
-builder.Services.AddEndpointsApiExplorer();
-builder.Services.AddSwaggerGen();
+builder.Services.AddDependencies();
 
 var app = builder.Build();
 
-if (app.Environment.IsDevelopment())
-{
-    app.UseSwagger();
-    app.UseSwaggerUI();
-}
+app.MapGrpcService<DatabaseController>();
 
-app.Run("http://*:5000");
+await app.RunAsync("http://*:5000");
