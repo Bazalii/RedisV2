@@ -1,10 +1,14 @@
-﻿namespace RedisV2.Database.Domain.Services.Storage;
+﻿using OneOf;
+using RedisV2.Database.Domain.Models.OperationResults.Errors;
+using RedisV2.Database.Domain.Models.OperationResults.SuccessResults;
+
+namespace RedisV2.Database.Domain.Services.Storage;
 
 public interface IDatabase
 {
-    void AddCollection(string collectionName);
-    IDatabaseCollection? GetCollection(string collectionName);
-    void DeleteCollection(string collectionName);
-    void FlushCollection(string collectionName);
-    void Flush();
+    OneOf<SuccessResult, AlreadyExistsError, UnexpectedError> AddCollection(string collectionName);
+    OneOf<IDatabaseCollection, NotFoundError, UnexpectedError> GetCollection(string collectionName);
+    OneOf<SuccessResult, UnexpectedError> DeleteCollection(string collectionName);
+    OneOf<SuccessResult, NotFoundError, UnexpectedError> FlushCollection(string collectionName);
+    OneOf<SuccessResult, UnexpectedError> Flush();
 }

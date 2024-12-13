@@ -3,5 +3,5 @@
 public struct CollectionElement
 {
     public string Element { get; init; }
-    public DateTime? ExpirationTime { get; init; }
+    public DateTimeOffset? ExpirationTime { get; init; }
 }

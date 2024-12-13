@@ -2,5 +2,5 @@
 
 public interface ICollectionChange
 {
-    public DateTimeOffset ChangeDate { get; }
+    DateTimeOffset ChangeTime { get; }
 }

@@ -6,12 +6,7 @@ public interface IChangeTracker
 {
     void AddChangeToQueue(ICollectionChange change);
 
-    ICollectionChange[] GetAllChanges(
-        string collectionName,
-        DateTimeOffset startDate,
-        DateTimeOffset endDate);
+    ICollectionChange[] GetAllChanges(DateTimeOffset startTime);
 
-    void ClearChanges(
-        string collectionName,
-        DateTimeOffset beforeDate);
+    void ClearChanges(DateTimeOffset beforeTime);
 }

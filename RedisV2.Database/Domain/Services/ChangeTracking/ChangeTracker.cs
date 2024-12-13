@@ -5,15 +5,31 @@ namespace RedisV2.Database.Domain.Services.ChangeTracking;
 
 public class ChangeTracker : IChangeTracker
 {
-    private readonly object _lock = new();
-
     private readonly BlockingCollection<ICollectionChange> _changesQueue = new(
         new ConcurrentQueue<ICollectionChange>());
 
+    private readonly object _lock = new();
     private readonly LinkedList<ICollectionChange> _changes = [];
 
     public ChangeTracker()
     {
+        StartCollectionChangesProcessing();
+    }
+
+    private void StartCollectionChangesProcessing()
+    {
+        Task.Factory.StartNew(ProcessCollectionChanges, TaskCreationOptions.LongRunning);
+    }
+
+    private void ProcessCollectionChanges()
+    {
+        foreach (var collectionChange in _changesQueue.GetConsumingEnumerable())
+        {
+            lock (_lock)
+            {
+                _changes.AddLast(collectionChange);
+            }
+        }
     }
 
     public void AddChangeToQueue(ICollectionChange change)
@@ -21,23 +37,24 @@ public class ChangeTracker : IChangeTracker
         _changesQueue.Add(change);
     }
 
-    public ICollectionChange[] GetAllChanges(
-        string collectionName,
-        DateTimeOffset startDate,
-        DateTimeOffset endDate)
+    public ICollectionChange[] GetAllChanges(DateTimeOffset startTime)
     {
         lock (_lock)
         {
             return _changes
-                .Where(change => change.ChangeDate >= startDate && change.ChangeDate <= endDate)
+                .Where(change => change.ChangeTime >= startTime)
                 .ToArray();
         }
     }
 
-    public void ClearChanges(
-        string collectionName,
-        DateTimeOffset beforeDate)
+    public void ClearChanges(DateTimeOffset beforeTime)
     {
-        throw new NotImplementedException();
+        lock (_lock)
+        {
+            while (_changes.First?.Value.ChangeTime <= beforeTime)
+            {
+                _changes.RemoveFirst();
+            }
+        }
     }
 }

@@ -3,5 +3,5 @@
 public record ElementDeletion : ICollectionChange
 {
     public string Key { get; init; }
-    public DateTimeOffset ChangeDate { get; init; }
+    public DateTimeOffset ChangeTime { get; init; }
 }
