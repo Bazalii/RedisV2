@@ -20,6 +20,20 @@ public static class OperationResults
         }
     }
 
+    public static async Task<OneOf<SuccessResult, UnexpectedError>> WithOperationStatusAsync(Func<Task> action)
+    {
+        try
+        {
+            await action();
+
+            return new SuccessResult();
+        }
+        catch (Exception exception)
+        {
+            return new UnexpectedError(exception.Message);
+        }
+    }
+
     public static bool IsNotSuccess(this IOneOf result)
     {
         return result.Value is

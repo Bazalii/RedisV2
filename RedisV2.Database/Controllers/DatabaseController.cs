@@ -1,142 +1,118 @@
-﻿using System.Collections.Concurrent;
-using Database;
-using Google.Protobuf.WellKnownTypes;
-using Grpc.Core;
-using RedisV2.Database.Domain.Models.OperationResults.Errors;
+﻿using Microsoft.AspNetCore.Mvc;
+using RedisV2.Database.Domain.Models.Views;
 using RedisV2.Database.Domain.Services.Storage;
-using RedisV2.Database.Helpers;
+using RedisV2.Database.Integration.Models.Requests;
+using RedisV2.Database.Integration.Models.Responses;
 
 namespace RedisV2.Database.Controllers;
 
+[ApiController]
+[Route("database")]
 public class DatabaseController(
-    IDatabase database)
-    : DatabaseService.DatabaseServiceBase
+    IDatabaseService databaseService)
+    : ControllerBase
 {
-    public override Task<OperationStatusResponse> AddCollection(
-        AddCollectionRequest request,
-        ServerCallContext context)
+    [HttpPost("collection")]
+    public async Task<ActionResult> AddCollection(AddCollectionRequest request)
     {
-        var addCollectionResult = database.AddCollection(request.Name);
-        if (addCollectionResult.IsNotSuccess())
-        {
-            return GrpcResultsMapper.CreateErrorOperationStatusResponse((IError)addCollectionResult.Value);
-        }
+        var addCollectionResult = await databaseService.AddCollection(request.Name);
 
-        return GrpcResultsMapper.CreateDefaultSuccessResponse();
+        return addCollectionResult.Match<ActionResult>(
+            success => Ok(),
+            alreadyExistsError => Conflict(alreadyExistsError.Message),
+            unexpectedError => Problem(unexpectedError.Message));
     }
 
-    public override Task<OperationStatusResponse> DeleteCollection(
-        DeleteCollectionRequest request,
-        ServerCallContext context)
+    [HttpDelete("collection")]
+    public async Task<ActionResult> DeleteCollection(DeleteCollectionRequest request)
     {
-        var deleteCollectionResult = database.DeleteCollection(request.Name);
-        if (deleteCollectionResult.IsNotSuccess())
-        {
-            return GrpcResultsMapper.CreateErrorOperationStatusResponse((IError)deleteCollectionResult.Value);
-        }
+        var deleteCollectionResult = await databaseService.DeleteCollection(request.Name);
 
-        return GrpcResultsMapper.CreateDefaultSuccessResponse();
+        return deleteCollectionResult.Match<ActionResult>(
+            success => Ok(),
+            unexpectedError => Problem(unexpectedError.Message));
     }
 
-    public override Task<OperationStatusResponse> UpsertElement(
-        UpsertElementRequest request,
-        ServerCallContext context)
+    [HttpPost("element")]
+    public async Task<ActionResult> UpsertElement(UpsertElementRequest request)
     {
-        var getCollectionResult = database.GetCollection(request.CollectionName);
-        if (getCollectionResult.IsNotSuccess())
-        {
-            return GrpcResultsMapper.CreateErrorOperationStatusResponse((IError)getCollectionResult.Value);
-        }
+        var upsertElementResult = await databaseService.UpsertElement(
+            request.CollectionName,
+            request.Key,
+            request.Value,
+            request.Expiry);
 
-        var collection = (IDatabaseCollection)getCollectionResult.Value;
-        var upsertElementResult = collection.Upsert(
-            request.Key, request.Value, request.Expiry?.ToTimeSpan());
-        if (upsertElementResult.IsNotSuccess())
-        {
-            return GrpcResultsMapper.CreateErrorOperationStatusResponse((IError)upsertElementResult.Value);
-        }
-
-        return GrpcResultsMapper.CreateDefaultSuccessResponse();
+        return upsertElementResult.Match<ActionResult>(
+            success => Ok(),
+            notFoundError => NotFound(notFoundError.Message),
+            unexpectedError => Problem(unexpectedError.Message));
     }
 
-    public override Task<GetElementResponse> GetElement(
-        GetElementRequest request,
-        ServerCallContext context)
+    [HttpGet("element")]
+    public ActionResult<GetElementResponse> GetElement(
+        string collectionName,
+        string key)
     {
-        var getCollectionResult = database.GetCollection(request.CollectionName);
-        if (getCollectionResult.IsNotSuccess())
-        {
-            return Task.FromResult(
-                new GetElementResponse
-                {
-                    Error = GrpcResultsMapper.CreateErrorResult((IError)getCollectionResult.Value)
-                });
-        }
+        var getElementResult = databaseService.GetElement(
+            collectionName, key);
 
-        var collection = (IDatabaseCollection)getCollectionResult.Value;
-        var upsertElementResult = collection.Get(request.Key);
-        if (upsertElementResult.IsNotSuccess())
-        {
-            return Task.FromResult(
-                new GetElementResponse
-                {
-                    Error = GrpcResultsMapper.CreateErrorResult((IError)upsertElementResult.Value)
-                });
-        }
-
-        return Task.FromResult(
-            new GetElementResponse
+        return getElementResult.Match<ActionResult>(
+            success => Ok(new GetElementResponse
             {
-                Element = new ElementResponse
-                {
-                    Value = (string)upsertElementResult.Value
-                }
-            });
+                Value = success,
+            }),
+            notFoundError => NotFound(notFoundError.Message),
+            unexpectedError => Problem(unexpectedError.Message));
     }
 
-    public override Task<OperationStatusResponse> DeleteElement(
-        DeleteElementRequest request,
-        ServerCallContext context)
+    [HttpDelete("element")]
+    public async Task<ActionResult> DeleteElement(DeleteElementRequest request)
     {
-        var getCollectionResult = database.GetCollection(request.CollectionName);
-        if (getCollectionResult.IsNotSuccess())
-        {
-            return GrpcResultsMapper.CreateErrorOperationStatusResponse((IError)getCollectionResult.Value);
-        }
+        var getElementResult = await databaseService.DeleteElement(
+            request.CollectionName, request.Key);
 
-        var collection = (IDatabaseCollection)getCollectionResult.Value;
-        var upsertElementResult = collection.Delete(request.Key);
-        if (upsertElementResult.IsNotSuccess())
-        {
-            return GrpcResultsMapper.CreateErrorOperationStatusResponse((IError)upsertElementResult.Value);
-        }
-
-        return GrpcResultsMapper.CreateDefaultSuccessResponse();
+        return getElementResult.Match<ActionResult>(
+            success => Ok(),
+            notFoundError => NotFound(notFoundError.Message),
+            unexpectedError => Problem(unexpectedError.Message));
     }
 
-    public override Task<OperationStatusResponse> FlushCollection(
-        FlushCollectionRequest request,
-        ServerCallContext context)
+    [HttpPost("handle-change")]
+    public async Task<ActionResult> HandleChange(HandleChangeRequest request)
     {
-        var flushCollectionResult = database.FlushCollection(request.Name);
-        if (flushCollectionResult.IsNotSuccess())
-        {
-            return GrpcResultsMapper.CreateErrorOperationStatusResponse((IError)flushCollectionResult.Value);
-        }
+        var applyChangeResult = await databaseService.ApplyChange(request.Change);
 
-        return GrpcResultsMapper.CreateDefaultSuccessResponse();
+        return applyChangeResult.Match<ActionResult>(
+            success => Ok(),
+            unexpectedError => Problem(unexpectedError.Message));
     }
 
-    public override Task<OperationStatusResponse> FlushDatabase(
-        Empty request,
-        ServerCallContext context)
+    [HttpGet("last-change-id")]
+    public ActionResult GetLastChangeId()
     {
-        var flushDatabaseResult = database.Flush();
-        if (flushDatabaseResult.IsNotSuccess())
-        {
-            return GrpcResultsMapper.CreateErrorOperationStatusResponse((IError)flushDatabaseResult.Value);
-        }
+        var lastChangeId = databaseService.GetLastChangeId();
 
-        return GrpcResultsMapper.CreateDefaultSuccessResponse();
+        return Ok(lastChangeId);
+    }
+
+    [HttpDelete("flush-collection")]
+    public async Task<ActionResult> FlushCollection(FlushCollectionRequest request)
+    {
+        var flushCollectionResult = await databaseService.FlushCollection(request.Name);
+
+        return flushCollectionResult.Match<ActionResult>(
+            success => Ok(),
+            notFoundError => NotFound(notFoundError.Message),
+            unexpectedError => Problem(unexpectedError.Message));
+    }
+
+    [HttpDelete("flush-database")]
+    public async Task<ActionResult> FlushDatabase()
+    {
+        var flushDatabaseResult = await databaseService.Flush();
+
+        return flushDatabaseResult.Match<ActionResult>(
+            success => Ok(),
+            unexpectedError => Problem(unexpectedError.Message));
     }
 }

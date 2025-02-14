@@ -1,12 +1,15 @@
-using RedisV2.Database.Controllers;
-using RedisV2.Database.Extensions;
+using RedisV2.Database.Infrastructure.Extensions;
 
 var builder = WebApplication.CreateBuilder(args);
 
-builder.Services.AddDependencies();
+builder.AddDependencies();
 
 var app = builder.Build();
 
-app.MapGrpcService<DatabaseController>();
+app.MapControllers();
 
-await app.RunAsync("http://*:5000");
+app.MapHealthChecks("/health-check");
+
+var port = builder.Configuration.GetValue<int>("ServiceSettings:Port");
+
+await app.RunAsync($"http://*:{port}");
