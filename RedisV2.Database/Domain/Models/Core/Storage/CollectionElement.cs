@@ -2,6 +2,6 @@
 
 public struct CollectionElement
 {
-    public string Element { get; init; }
+    public string Value { get; init; }
     public DateTimeOffset? ExpirationTime { get; init; }
 }

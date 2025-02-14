@@ -1,4 +1,5 @@
 ﻿using OneOf;
+using RedisV2.Database.Domain.Models.Core.ChangeTracking;
 using RedisV2.Database.Domain.Models.OperationResults.Errors;
 using RedisV2.Database.Domain.Models.OperationResults.SuccessResults;
 
@@ -11,4 +12,5 @@ public interface IDatabase
     OneOf<SuccessResult, UnexpectedError> DeleteCollection(string collectionName);
     OneOf<SuccessResult, NotFoundError, UnexpectedError> FlushCollection(string collectionName);
     OneOf<SuccessResult, UnexpectedError> Flush();
+    void StartCleanupTimer();
 }

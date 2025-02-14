@@ -2,9 +2,11 @@
 
 namespace RedisV2.Database.Domain.Models.Core.ChangeTracking;
 
-public record ElementUpsert : ICollectionChange
+public record ElementUpsert : IDatabaseChange
 {
-    public string Key { get; init; }
-    public CollectionElement Element { get; init; }
-    public DateTimeOffset ChangeTime { get; init; }
+    public required string CollectionName { get; init; }
+    public required string Key { get; init; }
+    public required CollectionElement Element { get; init; }
+    public required DateTimeOffset ChangeTime { get; init; }
+    public required long Id { get; init; }
 }

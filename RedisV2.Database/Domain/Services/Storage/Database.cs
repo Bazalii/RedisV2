@@ -2,21 +2,23 @@
 using OneOf;
 using RedisV2.Database.Domain.Models.OperationResults.Errors;
 using RedisV2.Database.Domain.Models.OperationResults.SuccessResults;
-using RedisV2.Database.Domain.Services.ChangeTracking;
+using Timer = System.Timers.Timer;
 using static RedisV2.Database.Helpers.OperationResults;
 
 namespace RedisV2.Database.Domain.Services.Storage;
 
-public class Database : IDatabase
+public class Database : IDatabase, IDisposable
 {
+    private const int CleanupTimeoutInSeconds = 10;
+    private Timer? _cleanupTimer;
+
     private ConcurrentDictionary<string, IDatabaseCollection> _database = new();
 
     public OneOf<SuccessResult, AlreadyExistsError, UnexpectedError> AddCollection(string collectionName)
     {
         try
         {
-            var changeTracker = new ChangeTracker();
-            var collection = new DatabaseCollection(changeTracker);
+            var collection = new DatabaseCollection();
 
             var isCollectionAdded = _database.TryAdd(collectionName, collection);
             if (isCollectionAdded)
@@ -73,4 +75,34 @@ public class Database : IDatabase
     public OneOf<SuccessResult, UnexpectedError> Flush() =>
         WithOperationStatus(
             () => _database = new ConcurrentDictionary<string, IDatabaseCollection>());
+
+    public void StartCleanupTimer()
+    {
+        var cleanupInterval = TimeSpan.FromSeconds(CleanupTimeoutInSeconds);
+        _cleanupTimer = new Timer(cleanupInterval);
+
+        _cleanupTimer.Elapsed += (_, _) => CleanExpiredElements();
+
+        _cleanupTimer.AutoReset = true;
+        _cleanupTimer.Enabled = true;
+    }
+
+    private void CleanExpiredElements()
+    {
+        foreach (var collection in _database.Values)
+        {
+            foreach (var (key, element) in collection.GetAll())
+            {
+                if (element.ExpirationTime < DateTime.UtcNow)
+                {
+                    collection.Delete(key);
+                }
+            }
+        }
+    }
+
+    public void Dispose()
+    {
+        _cleanupTimer?.Dispose();
+    }
 }
